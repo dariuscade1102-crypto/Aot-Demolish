@@ -157,8 +157,8 @@ function ODMGearController:StartBoost()
     end
     local now = os.clock()
     if now - self.LastAction.Boost < self.Config.BoostCooldown then return false end
-    local ok = self:_call("Boost", self.Config.BoostForce, self.Config.MaxSpeed)
-    if not ok then return false end
+    local ok, accepted = self:_call("Boost", self.Config.BoostForce, self.Config.MaxSpeed)
+    if not ok or accepted ~= true then return false end
     self.LastAction.Boost = now
     self.Boosting = true
     return true
@@ -178,8 +178,8 @@ function ODMGearController:Dash(direction)
 
     local now = os.clock()
     if now - self.LastAction.Dash < self.Config.DashCooldown then return false end
-    local ok = self:_call("Dash", direction.Unit, self.Config.MaxSpeed)
-    if not ok then return false end
+    local ok, accepted = self:_call("Dash", direction.Unit, self.Config.MaxSpeed)
+    if not ok or accepted ~= true then return false end
 
     self.LastAction.Dash = now
     self.Gas = math.max(0, self.Gas - self.Config.GasPerDash)
@@ -191,8 +191,8 @@ function ODMGearController:Slash(target)
     if not self.Equipped or self.Destroyed then return false end
     local now = os.clock()
     if now - self.LastAction.Slash < self.Config.SlashCooldown then return false end
-    local ok = self:_call("Slash", target)
-    if not ok then return false end
+    local ok, accepted = self:_call("Slash", target)
+    if not ok or accepted ~= true then return false end
     self.LastAction.Slash = now
     return true
 end
