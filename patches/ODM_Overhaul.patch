@@ -1,0 +1,136 @@
+--- a/aot_working/MATCH/StarterPlayerScripts/match_client.lua
++++ b/aot_working/MATCH/StarterPlayerScripts/match_client.lua
+@@ -59,12 +59,12 @@
+ 	tensionDamp = 5.2,
+ 	swingBoost = 72,
+ 	hookMin = 5,
+-	hookSpeed = 2600,
++	hookSpeed = 3000,
+ 	recoil = 14,
+ 	ropeThick = 0.14,
+ 
+ 	swerveAccel = 160,
+-	boostAccel = 200,
++	boostAccel = 300,
+ 	boostBurstSpeed = 95,
+ 	boostCooldown = 0.22,
+ 
+@@ -73,14 +73,14 @@
+ 	dashCooldown = 0.42,
+ 	doubleTapWindow = 0.28,
+ 
+-	maxSpeed = 380,
++	maxSpeed = 430,
+ 	maxDashSpeed = 450,
+ 	drag = 0.2,
+ 	capHardness = 4.8,
+ 
+-	maxGas = 110,
+-	gasPull = 3.0,
+-	gasBoost = 7.5,
++	maxGas = 125,
++	gasPull = 1.8,
++	gasBoost = 4.2,
+ 	gasRefill = 42,
+ 
+ 	slashCooldown = 0.28,
+@@ -164,6 +164,8 @@
+ 	if authoritativeGas ~= nil then gas = math.clamp(authoritativeGas, 0, CONFIG.maxGas) end
+ end)
+ local hooks = { Left = nil, Right = nil }
++local odmMouseHeld = false
++local nextAutoHookAt = 0
+ local hookRequestId = 0
+ local lastODMIntentAt, lastSentODMIntent = 0, nil
+ local function reportODMIntent(boosting)
+@@ -678,7 +680,8 @@
+ local helpPanel = UI.panel(gui, UDim2.new(0, 230, 0, 304), UDim2.new(0, 14, 0, 134))
+ do
+ 	local helpLines = {
+-		{ "Q / E", "HOOK LEFT / RIGHT" },
++		{ "HOLD RMB", "AUTO DUAL GRAPPLE" },
++		{ "RELEASE RMB", "LET GO / KEEP MOMENTUM" },
+ 		{ "SPACE", "BURST / HOLD BOOST" },
+ 		{ "SHIFT", "TOGGLE SHIFT LOCK" },
+ 		{ "ALT / F", "DASH / DOUBLE TAP" },
+@@ -3205,7 +3208,6 @@
+ 	end)
+ end
+ 
+-local hookKeys = { [Enum.KeyCode.Q] = "Left", [Enum.KeyCode.E] = "Right" }
+ local dirKeys = {
+ 	[Enum.KeyCode.W] = true,
+ 	[Enum.KeyCode.A] = true,
+@@ -3234,9 +3236,10 @@
+ 		end
+ 	end
+ 
+-	local side = hookKeys[input.KeyCode]
+-	if side then
+-		fireHook(side)
++	if input.UserInputType == Enum.UserInputType.MouseButton2 then
++		odmMouseHeld = true
++		nextAutoHookAt = os.clock() + 0.22
++		fireDualHooks()
+ 	elseif input.KeyCode == Enum.KeyCode.Space then
+ 		spaceHeld = true
+ 		-- Double-jump / Space press = boost
+@@ -3275,7 +3278,11 @@
+ end)
+ 
+ UIS.InputEnded:Connect(function(input)
+-	-- Hooks are toggle: second press cuts (handled in fireHook). Don't cut on key release.
++	if input.UserInputType == Enum.UserInputType.MouseButton2 then
++		odmMouseHeld = false
++		-- Cutting the lines does not zero AssemblyLinearVelocity, so swing momentum carries through.
++		cutHooks()
++	end
+ 	if input.KeyCode == Enum.KeyCode.Space then
+ 		spaceHeld = false
+ 	end
+@@ -3495,6 +3502,11 @@
+ end
+ 
+ RunService.Heartbeat:Connect(function(dt)
++	if odmMouseHeld and os.clock() >= nextAutoHookAt and combatHudActive and not grabbedNow and player:GetAttribute("InCutscene") ~= true and player:GetAttribute("Mounted") ~= true then
++		if not hooks.Left then fireHook("Left") end
++		if not hooks.Right then fireHook("Right") end
++		nextAutoHookAt = os.clock() + 0.32
++	end
+ 	updateHud(dt)
+ 
+ 	local root, humanoid = getCharacter()
+--- a/aot_working/MATCH/ServerScriptService/match_server.lua
++++ b/aot_working/MATCH/ServerScriptService/match_server.lua
+@@ -289,8 +289,8 @@
+ 			local hookCount = playerHooks and ((playerHooks.Left and 1 or 0) + (playerHooks.Right and 1 or 0)) or 0
+ 			local boosting = odmBoostIntent[player] == true and humanoid.FloorMaterial == Enum.Material.Air and current > 0
+ 			local gasDrainMult = player:GetAttribute("GasDrainMult") or 1
+-			if boosting then current -= (Scaling.ODM.gasBoost or 7.5) * gasDrainMult * dt end
+-			current -= hookCount * (Scaling.ODM.gasPull or 3) * gasDrainMult * dt
++			if boosting then current -= (Scaling.ODM.gasBoost or 4.2) * gasDrainMult * dt end
++			current -= hookCount * (Scaling.ODM.gasPull or 1.8) * gasDrainMult * dt
+ 			if hookCount == 2 then current -= (Scaling.ODM.gasPull or 3) * 0.35 * gasDrainMult * dt end
+ 			if hookCount == 0 and not boosting and humanoid.FloorMaterial ~= Enum.Material.Air then
+ 				current += (Scaling.ODM.gasRefill or 42) * dt
+--- a/aot_working/BOTH/ReplicatedStorage/Scaling.lua
++++ b/aot_working/BOTH/ReplicatedStorage/Scaling.lua
+@@ -8,12 +8,12 @@
+ 
+ -- Shared ODM tuning used by the match controller and its server-side hook validator.
+ Scaling.ODM = {
+-	hookSpeed = 2500,
+-	hookRangeFloor = 750,
+-	boostAcceleration = 245,
+-	maxSpeed = 410,
+-	gasPull = 3,
+-	gasBoost = 7.5,
++	hookSpeed = 3000,
++	hookRangeFloor = 800,
++	boostAcceleration = 310,
++	maxSpeed = 430,
++	gasPull = 1.8,
++	gasBoost = 4.2,
+ 	gasRefill = 42,
+ 	dashGas = 8,
+ }
